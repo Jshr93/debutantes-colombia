@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debutantes Colombia — CSA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#16202E; --page:#ECEFF3; --card:#FFFFFF;
+    --ink:#171B21; --muted:#626B78; --faint:#8A94A1; --line:#E4E8ED;
+    --go:#0F5F34;    --go-bg:#E4F3EA;   --go-bar:#2AA35F;
+    --bench:#8A5410; --bench-bg:#F8EDD9;
+    --tag:#374559;   --tag-bg:#EAEEF4;
+    --star:#127C42;  --star-bg:#EFF7F1; --star-line:#BFE0CB;
+    --gold:#8A6A00;  --gold-bg:#FCF3D2;
+    --gold-line:#DEB84A; --gold-bar:#D9A521;
+    --red:#B23A3A;
+    --radius:12px;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{font-family:'Barlow',system-ui,sans-serif;background:var(--page);color:var(--ink);
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 16px 56px}
+  h1,h2{margin:0}
+
+  .top{background:var(--navy);color:#fff;padding:22px 16px 0}
+  .top-inner{max-width:860px;margin:0 auto}
+  .top-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .brand h1{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:30px;line-height:1.05;letter-spacing:.2px}
+  .brand p{margin:4px 0 0;color:#A9B6C6;font-size:14px}
+  .upd{text-align:right;color:#C4D0DE;font-size:12.5px}
+  .upd b{display:block;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;color:#fff;font-size:15px}
+  .upd small{color:#8595A8;font-size:11.5px}
+  .tabs{display:flex;gap:4px;margin-top:16px}
+  .tab{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:16px;color:#9DB0C4;
+    background:none;border:0;padding:11px 16px;cursor:pointer;border-bottom:3px solid transparent;letter-spacing:.2px}
+  .tab[aria-selected="true"]{color:#fff;border-bottom-color:#2AA35F}
+  .tab:focus-visible{outline:2px solid #2AA35F;outline-offset:-3px}
+
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:18px 0}
+  .stat{background:var(--card);padding:13px 16px}
+  .stat .n{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:26px;line-height:1}
+  .stat .l{color:var(--muted);font-size:12.5px;margin-top:3px}
+  .stat.go .n{color:var(--go)} .stat.bench .n{color:var(--bench)} .stat.gold .n{color:var(--gold-bar)}
+
+  .filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .seg button{font-family:inherit;font-size:13.5px;color:var(--muted);background:none;border:0;
+    padding:6px 13px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .seg button[aria-pressed="true"]{background:var(--navy);color:#fff;font-weight:500}
+  .seg button:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+  select{font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--card);border:1px solid var(--line);
+    border-radius:999px;padding:7px 30px 7px 14px;cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23626B78' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center}
+  select:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+  .count{margin-left:auto;color:var(--faint);font-size:13px}
+
+  .list{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .row{display:flex;gap:15px;padding:16px;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .row:hover{background:#FAFBFC}
+  .age{flex:0 0 auto;width:58px;height:58px;border-radius:10px;background:var(--navy);color:#fff;
+    display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .age b{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:29px;line-height:.9}
+  .age span{font-size:10.5px;color:#9DB0C4;margin-top:2px}
+  .main{flex:1 1 auto;min-width:0}
+  .name-row{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .name{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:20px;line-height:1.1}
+  .pos{font-size:12.5px;font-weight:500;color:var(--tag);background:var(--tag-bg);padding:2px 9px;border-radius:6px}
+  .uni-badge{font-size:12px;font-weight:600;color:var(--gold);background:var(--gold-bg);
+    border:1px solid var(--gold-line);padding:2px 9px;border-radius:6px}
+  .club{margin-top:4px;font-size:14.5px}
+  .tag{display:inline-block;font-size:12px;color:var(--tag);background:var(--tag-bg);padding:1px 8px;border-radius:5px;margin-left:6px;vertical-align:1px}
+  .match{margin-top:2px;color:var(--muted);font-size:13.5px}
+  .facts{display:flex;gap:18px;flex-wrap:wrap;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line)}
+  .fact .fl{font-size:11px;color:var(--faint)}
+  .fact .fv{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:15px}
+  .fact .fv.min{color:var(--go)} .fact .fv.min0{color:var(--faint)}
+  .side{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .pill{font-size:12.5px;font-weight:500;padding:4px 11px;border-radius:999px;white-space:nowrap}
+  .pill.go{color:var(--go);background:var(--go-bg)} .pill.bench{color:var(--bench);background:var(--bench-bg)}
+  .tm{font-size:12.5px;color:var(--navy);text-decoration:none;border:1px solid var(--line);padding:4px 10px;border-radius:8px;background:var(--card);cursor:pointer;font-family:inherit}
+  .tm:hover{border-color:#C7CFDA;background:#F6F8FA}
+  .rating{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700}
+  .r-hi{color:var(--go)} .r-mid{color:var(--muted)} .r-lo{color:var(--red)} .r-na{color:var(--faint)}
+
+  /* Seguimiento */
+  .spark{display:flex;align-items:flex-end;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);flex-wrap:wrap}
+  .bar{display:flex;flex-direction:column;align-items:center;gap:2px;width:32px}
+  .bar .mn{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:12px;line-height:1}
+  .bar .col{width:100%;height:40px;background:#F0F2F5;border-radius:4px;display:flex;align-items:flex-end;overflow:hidden}
+  .bar .fill{width:100%;background:var(--go-bar);border-radius:4px 4px 0 0}
+  .bar.zero .fill{background:#CBD2DA;min-height:3px}
+  .bar.debut .col{outline:2px solid var(--navy);outline-offset:1px}
+  .bar .jr{font-size:10px;color:var(--faint)}
+  .bar .rt{font-size:11px;font-weight:700;font-family:'Barlow Semi Condensed',sans-serif;line-height:1}
+  .track-sum{display:flex;gap:18px;flex-wrap:wrap;margin-top:9px}
+  .track-sum .fv{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:15px}
+  .track-sum .fv.hot{color:var(--go)}
+  .acts{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:158px}
+  .act-btns{display:flex;gap:6px}
+  .icon{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--card);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);padding:0}
+  .icon:hover{border-color:#C7CFDA;background:#F6F8FA}
+  .icon:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+  .icon svg{width:18px;height:18px}
+  .icon.on{background:var(--star-bg);border-color:var(--star-line);color:var(--star)}
+  .agente{width:100%}
+  .agente label{display:block;font-size:11px;color:var(--faint);margin-bottom:3px;text-align:left}
+  .agente input{width:100%;font-family:inherit;font-size:13px;color:var(--ink);background:var(--card);
+    border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+  .agente input::placeholder{color:var(--faint)}
+  .agente input:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
+  .agente input.alert{border-color:var(--gold-line);background:var(--gold-bg);color:var(--gold);font-weight:600}
+  .row.is-star{background:var(--star-bg)}
+  .row.is-star:hover{background:#EAF4EE}
+  .row.is-uni{box-shadow:inset 5px 0 0 var(--gold-bar)}
+  .row.is-discard{opacity:.5}
+  .row.is-discard .name{text-decoration:line-through}
+  .legend-jr{font-size:11px;color:var(--faint);margin:0 0 8px}
+
+  .empty{padding:40px 16px;text-align:center;color:var(--muted);font-size:15px}
+  .hidden{display:none}
+
+  @media (max-width:600px){
+    .stats{grid-template-columns:1fr 1fr}
+    .row{flex-wrap:wrap}
+    .side{flex-direction:row;align-items:center;width:100%;padding-left:73px}
+    .acts{width:100%;align-items:stretch;padding-left:73px}
+    .acts .act-btns{justify-content:flex-start}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="top-row">
+      <div class="brand">
+        <h1>Debutantes Colombia</h1>
+        <p>Primera A y B — jugadores sub-21</p>
+      </div>
+      <div class="upd">Última actualización<b>14 sep 2026, 22:40</b><small>Se actualiza en cada jornada</small></div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true"  onclick="setTab('deb')" id="tab-deb">Debutantes</button>
+      <button class="tab" role="tab" aria-selected="false" onclick="setTab('seg')" id="tab-seg">Seguimiento</button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- VENTANA 1 -->
+  <section id="panel-deb" role="tabpanel">
+    <div class="stats">
+      <div class="stat"><div class="n" id="s-total">0</div><div class="l">Debutantes en la jornada</div></div>
+      <div class="stat go"><div class="n" id="s-played">0</div><div class="l">Debutaron en cancha</div></div>
+      <div class="stat bench"><div class="n" id="s-bench">0</div><div class="l">Solo al banco</div></div>
+    </div>
+    <div class="filters">
+      <div class="seg" role="group" aria-label="Liga">
+        <button data-liga="all" aria-pressed="true">Todas</button>
+        <button data-liga="Primera A" aria-pressed="false">Primera A</button>
+        <button data-liga="Primera B" aria-pressed="false">Primera B</button>
+      </div>
+      <div class="seg" role="group" aria-label="Tipo">
+        <button data-tipo="all" aria-pressed="true">Todos</button>
+        <button data-tipo="played" aria-pressed="false">Debutantes</button>
+        <button data-tipo="bench" aria-pressed="false">Solo banco</button>
+      </div>
+      <select id="fecha" aria-label="Fecha"></select>
+      <span class="count" id="count-deb"></span>
+    </div>
+    <section class="list" id="list-deb" aria-live="polite"></section>
+  </section>
+
+  <!-- VENTANA 2 -->
+  <section id="panel-seg" role="tabpanel" class="hidden">
+    <div class="stats">
+      <div class="stat"><div class="n" id="s-year">0</div><div class="l">Debutantes del año</div></div>
+      <div class="stat go"><div class="n" id="s-star">0</div><div class="l">Destacados</div></div>
+      <div class="stat gold"><div class="n" id="s-uni">0</div><div class="l">Sin agente</div></div>
+    </div>
+    <div class="filters">
+      <div class="seg" role="group" aria-label="Estado">
+        <button data-seg="all" aria-pressed="true">Todos</button>
+        <button data-seg="star" aria-pressed="false">Destacados</button>
+        <button data-seg="disc" aria-pressed="false">Descartados</button>
+      </div>
+      <span class="count" id="count-seg"></span>
+    </div>
+    <p class="legend-jr">Cada barra es un partido tras el debut · recuadro azul = debut · altura = minutos · número de abajo = nota.</p>
+    <section class="list" id="list-seg" aria-live="polite"></section>
+  </section>
+
+</div>
+
+<script>
+  const TODAY=new Date('2026-09-14');
+  const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  // Datos de ejemplo (en la app real vienen de Supabase). Nombres ficticios. rt = nota API-Football (0-10, null si no hay).
+  const P=[
+    {name:"Kevin Moreno",dob:"2009-01-04",club:"Orsomarso SC",liga:"Primera B",pos:"Delantero",shirt:29,agent:"NO",flag:null,
+     debut:{jr:11,date:"2026-09-13",rival:"Real Cartagena",role:"titular",min:64,rt:7.2},
+     post:[{jr:12,rival:"Atlético FC",min:78,rt:7.0},{jr:13,rival:"Llaneros",min:0,rt:null},{jr:14,rival:"Dep. Quindío",min:74,rt:7.5}]},
+    {name:"Deiver Angulo",dob:"2009-03-11",club:"Boyacá Chicó",liga:"Primera B",pos:"Extremo",shirt:37,agent:"",flag:"star",
+     debut:{jr:11,date:"2026-09-14",rival:"Cúcuta Deportivo",role:"titular",min:90,rt:7.8},
+     post:[{jr:12,rival:"Orsomarso SC",min:90,rt:8.1},{jr:13,rival:"Real Cartagena",min:85,rt:7.6}]},
+    {name:"Santiago Rojas",dob:"2007-05-20",club:"Deportivo Cali",liga:"Primera A",pos:"Volante central",shirt:26,agent:"Base Soccer",flag:null,
+     debut:{jr:10,date:"2026-09-12",rival:"Once Caldas",role:"cambio",min:22,rt:6.7},
+     post:[{jr:11,rival:"Junior",min:31,rt:6.9},{jr:12,rival:"Nacional",min:45,rt:7.1}]},
+    {name:"Miguel A. Tenorio",dob:"2008-08-02",club:"Cúcuta Deportivo",liga:"Primera B",pos:"Defensa central",shirt:24,agent:"",flag:null,
+     debut:{jr:11,date:"2026-09-13",rival:"Atlético FC",role:"titular",min:90,rt:7.0},
+     post:[{jr:12,rival:"Boyacá Chicó",min:90,rt:6.8}]},
+    {name:"Juan D. Palacios",dob:"2010-02-18",club:"Real Cartagena",liga:"Primera B",pos:"Lateral derecho",shirt:33,agent:"",flag:null,
+     debut:{jr:11,date:"2026-09-13",rival:"Boyacá Chicó",role:"banca",min:0,rt:null},
+     post:[{jr:12,rival:"Cúcuta Deportivo",min:0,rt:null}]},
+    {name:"Cristian Lucumí",dob:"2007-11-15",club:"Once Caldas",liga:"Primera A",pos:"Volante central",shirt:28,agent:"Fair Play Agency",flag:null,
+     debut:{jr:10,date:"2026-09-12",rival:"Deportivo Cali",role:"banca",min:0,rt:null},
+     post:[{jr:11,rival:"Millonarios",min:0,rt:null},{jr:12,rival:"Tolima",min:12,rt:6.5}]},
+    {name:"Andrés Villaquirán",dob:"2006-06-09",club:"Atlético Bucaramanga",liga:"Primera A",pos:"Delantero",shirt:19,agent:"",flag:"discard",
+     debut:{jr:12,date:"2026-09-14",rival:"Águilas Doradas",role:"cambio",min:15,rt:6.4},post:[]},
+  ];
+
+  const ROLE_TXT={titular:"de titular",cambio:"entró de cambio",banca:"convocado"};
+  const fmtDate=iso=>{const d=new Date(iso);return `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} ${d.getUTCFullYear()}`};
+  const age=iso=>{const b=new Date(iso);let a=TODAY.getUTCFullYear()-b.getUTCFullYear();
+    if(TODAY.getUTCMonth()<b.getUTCMonth()||(TODAY.getUTCMonth()===b.getUTCMonth()&&TODAY.getUTCDate()<b.getUTCDate()))a--;return a};
+  const played=p=>p.debut.min>0;
+  const isUni=p=>(p.agent||"").trim().toUpperCase()==="NO";
+  const tm=n=>"https://www.transfermarkt.com/schnellsuche/ergebnis/schnellsuche?query="+encodeURIComponent(n);
+  function ratingHTML(rt){
+    if(rt==null)return '<span class="rating r-na">—</span>';
+    const c=rt>=7.0?"r-hi":rt>=6.0?"r-mid":"r-lo";
+    return `<span class="rating ${c}">${rt.toFixed(1)}</span>`;
+  }
+
+  let fLiga="all",fTipo="all",fFecha="all",fSeg="all";
+
+  function setTab(t){
+    document.getElementById('tab-deb').setAttribute('aria-selected',t==='deb');
+    document.getElementById('tab-seg').setAttribute('aria-selected',t==='seg');
+    document.getElementById('panel-deb').classList.toggle('hidden',t!=='deb');
+    document.getElementById('panel-seg').classList.toggle('hidden',t!=='seg');
+  }
+
+  /* Ventana 1 */
+  function fechasList(){
+    const set=[...new Set(P.map(p=>p.debut.jr))].sort((a,b)=>a-b);
+    const s=document.getElementById('fecha');
+    s.innerHTML='<option value="all">Todas las fechas</option>'+set.map(j=>`<option value="${j}">Fecha ${j}</option>`).join('');
+    s.onchange=e=>{fFecha=e.target.value;renderDeb()};
+  }
+  function renderDeb(){
+    const rows=P.filter(p=>{
+      if(fLiga!=="all"&&p.liga!==fLiga)return false;
+      if(fTipo==="played"&&!played(p))return false;
+      if(fTipo==="bench"&&played(p))return false;
+      if(fFecha!=="all"&&String(p.debut.jr)!==fFecha)return false;
+      return true;
+    });
+    document.getElementById('count-deb').textContent=rows.length+(rows.length===1?" jugador":" jugadores");
+    document.getElementById('list-deb').innerHTML= rows.length? rows.map(p=>{
+      const pl=played(p),minTxt=pl?`${p.debut.min}′ · ${ROLE_TXT[p.debut.role]}`:"0′ · no jugó";
+      return `<article class="row">
+        <div class="age"><b>${age(p.dob)}</b><span>años</span></div>
+        <div class="main">
+          <div class="name-row"><span class="name">${p.name}</span><span class="pos">${p.pos}</span></div>
+          <div class="club">${p.club}<span class="tag">${p.liga}</span></div>
+          <div class="match">vs ${p.debut.rival} — Fecha ${p.debut.jr}, ${fmtDate(p.debut.date)}</div>
+          <div class="facts">
+            <div class="fact"><div class="fl">Dorsal</div><div class="fv">${p.shirt}</div></div>
+            <div class="fact"><div class="fl">Nacimiento</div><div class="fv">${fmtDate(p.dob)}</div></div>
+            <div class="fact"><div class="fl">Minutos</div><div class="fv ${pl?'min':'min0'}">${minTxt}</div></div>
+            <div class="fact"><div class="fl">Nota</div><div class="fv">${ratingHTML(p.debut.rt)}</div></div>
+          </div>
+        </div>
+        <div class="side">
+          <span class="pill ${pl?'go':'bench'}">${pl?'Debutante':'Solo al banco'}</span>
+          <a class="tm" href="${tm(p.name)}" target="_blank" rel="noopener">Transfermarkt</a>
+        </div>
+      </article>`;
+    }).join(''):'<div class="empty">No hay debutantes con estos filtros.</div>';
+  }
+  function statsDeb(){
+    document.getElementById('s-total').textContent=P.length;
+    document.getElementById('s-played').textContent=P.filter(played).length;
+    document.getElementById('s-bench').textContent=P.filter(p=>!played(p)).length;
+  }
+
+  /* Ventana 2 */
+  const STAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.3 19.6l1-6L3 9.4l6-.9z"/></svg>';
+  const STARF='<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.3 19.6l1-6L3 9.4l6-.9z"/></svg>';
+  const XI='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+  function renderSeg(){
+    const rows=P.filter(p=>{
+      if(fSeg==="star")return p.flag==="star";
+      if(fSeg==="disc")return p.flag==="discard";
+      return true; // "Todos" incluye descartados, en su lugar
+    });
+    document.getElementById('count-seg').textContent=rows.length+(rows.length===1?" jugador":" jugadores");
+    document.getElementById('list-seg').innerHTML= rows.length? rows.map(p=>{
+      const i=P.indexOf(p);
+      const disc=p.flag==="discard",uni=isUni(p)&&!disc;
+      const cls=[p.flag==="star"?"is-star":"",disc?"is-discard":"",uni?"is-uni":""].join(' ').trim();
+      const matches=[{jr:p.debut.jr,min:p.debut.min,rt:p.debut.rt,debut:true},...p.post];
+      const bars=matches.map(m=>{
+        const h=Math.max(Math.round((m.min/90)*100),m.min?8:0);
+        return `<div class="bar ${m.min===0?'zero':''} ${m.debut?'debut':''}">
+          <div class="mn">${m.min}′</div>
+          <div class="col"><div class="fill" style="height:${h}%"></div></div>
+          <div class="jr">F${m.jr}</div><div class="rt">${m.rt==null?'<span class=r-na>—</span>':ratingHTML(m.rt)}</div></div>`;
+      }).join('');
+      const totalMin=p.post.reduce((s,m)=>s+m.min,0),conv=p.post.length;
+      const uniBadge=uni?'<span class="uni-badge">🦄 Sin agente</span>':'';
+      let acts;
+      if(disc){
+        acts=`<div class="act-btns"><button class="tm" onclick="restore(${i})">Restaurar</button></div>`;
+      }else{
+        const on=p.flag==="star";
+        acts=`<div class="act-btns">
+            <button class="icon ${on?'on':''}" aria-label="Destacar" aria-pressed="${on}" onclick="toggleStar(${i})">${on?STARF:STAR}</button>
+            <button class="icon" aria-label="Descartar" onclick="discard(${i})">${XI}</button>
+          </div>
+          <div class="agente"><label>Agente</label>
+            <input type="text" value="${p.agent||''}" placeholder="Nombre o NO" onchange="setAgent(${i},this.value)"
+              class="${uni?'alert':''}"></div>`;
+      }
+      return `<article class="row ${cls}">
+        <div class="age"><b>${age(p.dob)}</b><span>años</span></div>
+        <div class="main">
+          <div class="name-row"><span class="name">${p.name}</span><span class="pos">${p.pos}</span>${uniBadge}</div>
+          <div class="club">${p.club}<span class="tag">${p.liga}</span></div>
+          <div class="track-sum">
+            <span>Debut: <span class="fv">Fecha ${p.debut.jr} · ${p.debut.min}′ · nota ${p.debut.rt==null?'—':p.debut.rt.toFixed(1)}</span></span>
+            <span>Post-debut: <span class="fv ${totalMin>0?'hot':''}">${conv} conv. · ${totalMin}′</span></span>
+          </div>
+          <div class="spark">${bars}</div>
+        </div>
+        <div class="acts">${acts}</div>
+      </article>`;
+    }).join(''):'<div class="empty">No hay jugadores en esta vista.</div>';
+  }
+  function statsSeg(){
+    document.getElementById('s-year').textContent=P.filter(p=>p.flag!=="discard").length;
+    document.getElementById('s-star').textContent=P.filter(p=>p.flag==="star").length;
+    document.getElementById('s-uni').textContent=P.filter(p=>isUni(p)&&p.flag!=="discard").length;
+  }
+  function toggleStar(i){P[i].flag=P[i].flag==="star"?null:"star";statsSeg();renderSeg()}
+  function discard(i){P[i].flag="discard";statsSeg();renderSeg()}
+  function restore(i){P[i].flag=null;statsSeg();renderSeg()}
+  function setAgent(i,v){P[i].agent=v.trim();statsSeg();renderSeg()}
+
+  document.querySelectorAll('.seg').forEach(seg=>{
+    seg.addEventListener('click',e=>{
+      const b=e.target.closest('button');if(!b)return;
+      seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true');
+      if(b.dataset.liga!==undefined)fLiga=b.dataset.liga;
+      if(b.dataset.tipo!==undefined)fTipo=b.dataset.tipo;
+      if(b.dataset.seg!==undefined){fSeg=b.dataset.seg;renderSeg();return}
+      renderDeb();
+    });
+  });
+
+  fechasList();statsDeb();renderDeb();statsSeg();renderSeg();
+</script>
+</body>
+</html>
