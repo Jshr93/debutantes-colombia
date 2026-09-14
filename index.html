@@ -201,6 +201,7 @@
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   const TODAY=new Date('2026-09-14');
   const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -354,10 +355,34 @@
     document.getElementById('s-star').textContent=P.filter(p=>p.flag==="star").length;
     document.getElementById('s-uni').textContent=P.filter(p=>isUni(p)&&p.flag!=="discard").length;
   }
-  function toggleStar(i){P[i].flag=P[i].flag==="star"?null:"star";statsSeg();renderSeg()}
-  function discard(i){P[i].flag="discard";statsSeg();renderSeg()}
-  function restore(i){P[i].flag=null;statsSeg();renderSeg()}
-  function setAgent(i,v){P[i].agent=v.trim();statsSeg();renderSeg()}
+  // ── Supabase ───────────────────────────────────────────────────────────────
+  const sb = window.supabase.createClient(
+    'https://extcnlqlsxzosdzbqphi.supabase.co',
+    'sb_publishable_P_D-N5U6BAsT6Ia59Z_bHQ_78dq69uc'
+  );
+
+  async function loadStatuses() {
+    const { data, error } = await sb.from('player_status').select('player_name,flag,agent');
+    if (error) { console.error('Supabase load:', error.message); return; }
+    data.forEach(row => {
+      const p = P.find(x => x.name === row.player_name);
+      if (p) { p.flag = row.flag || null; p.agent = row.agent || ''; }
+    });
+  }
+
+  async function saveStatus(p) {
+    const { error } = await sb.from('player_status').upsert(
+      { player_name: p.name, flag: p.flag ?? null, agent: p.agent ?? '', updated_at: new Date().toISOString() },
+      { onConflict: 'player_name' }
+    );
+    if (error) console.error('Supabase save:', error.message);
+  }
+  // ──────────────────────────────────────────────────────────────────────────
+
+  function toggleStar(i){P[i].flag=P[i].flag==="star"?null:"star";saveStatus(P[i]);statsSeg();renderSeg()}
+  function discard(i){P[i].flag="discard";saveStatus(P[i]);statsSeg();renderSeg()}
+  function restore(i){P[i].flag=null;saveStatus(P[i]);statsSeg();renderSeg()}
+  function setAgent(i,v){P[i].agent=v.trim();saveStatus(P[i]);statsSeg();renderSeg()}
 
   document.querySelectorAll('.seg').forEach(seg=>{
     seg.addEventListener('click',e=>{
@@ -371,7 +396,12 @@
     });
   });
 
-  fechasList();statsDeb();renderDeb();statsSeg();renderSeg();
+  async function init() {
+    document.getElementById('list-seg').innerHTML = '<div class="empty">Cargando datos...</div>';
+    await loadStatuses();
+    fechasList(); statsDeb(); renderDeb(); statsSeg(); renderSeg();
+  }
+  init();
 </script>
 </body>
 </html>
