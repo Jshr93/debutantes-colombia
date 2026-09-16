@@ -23,6 +23,16 @@ Quota-saving notes:
     stop) skips already-processed matches entirely — no /lineups or
     /box-score call is repeated. If every match for a given league+date is
     already processed, the /matches list call itself is skipped too.
+
+Post-debut tracking:
+  - Any debutante who actually played (min > 0) is tracked for their next 5
+    appearances with minutes, recorded into the 'post_debut' table. This
+    reuses the box-score data already fetched for debut detection — no
+    extra Highlightly API calls.
+  - Only matches processed from now on are scanned for this. A match already
+    marked complete in progress.json from a prior run is never re-opened, so
+    post-debut appearances that fell inside an already-backfilled date range
+    before this feature existed will not be picked up retroactively.
 """
 
 import os
@@ -208,6 +218,41 @@ def save_debutante(row):
     """
     sb.table("debutantes").upsert(row, on_conflict="player_id,debut_date").execute()
 
+def load_tracked_players():
+    """
+    Build the post-debut tracking set: every player from 'debutantes' whose
+    debut had min > 0 (they actually played), minus anyone who already has
+    5 rows in 'post_debut' — they're done being tracked.
+    Returns {player_id: {"name":.., "debut_date": date, "count": int, "dates": set(...)}}
+    """
+    debuts = sb.table("debutantes").select("player_id,name,debut_date,min").gt("min", 0).execute().data
+    tracked = {}
+    for row in debuts:
+        tracked[row["player_id"]] = {
+            "name":       row["name"],
+            "debut_date": date.fromisoformat(row["debut_date"]),
+            "count":      0,
+            "dates":      set(),
+        }
+    if not tracked:
+        return tracked
+
+    posts = sb.table("post_debut").select("player_id,match_date").execute().data
+    for row in posts:
+        pid = row["player_id"]
+        if pid in tracked:
+            tracked[pid]["count"] += 1
+            tracked[pid]["dates"].add(row["match_date"])
+
+    return {pid: info for pid, info in tracked.items() if info["count"] < 5}
+
+def save_post_debut(row):
+    """
+    Insert one post-debut appearance. Uses upsert on (player_id, match_date)
+    so re-running a date already recorded is safe — no duplicates.
+    """
+    sb.table("post_debut").upsert(row, on_conflict="player_id,match_date").execute()
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 def parse_jornada(round_str):
     """Extract the matchday number from e.g. 'Regular Season - 11' → 11."""
@@ -229,7 +274,7 @@ def _flatten(entries):
             yield entry
 
 # ─── Core: one match ──────────────────────────────────────────────────────────
-def process_match(match, league_name, target_date, seen, dob_cache, dry_run):
+def process_match(match, league_name, target_date, seen, dob_cache, tracked, dry_run):
     """
     Returns True if the match was fully read (lineup + box-score available,
     debut decision made) — safe to mark as processed and never fetch again.
@@ -306,9 +351,30 @@ def process_match(match, league_name, target_date, seen, dob_cache, dry_run):
     # ── Step 3: Decide who is a debutante ────────────────────────────────────
     new_debuts = []
     new_seen   = []  # everyone new (any age) — recorded so we skip them next time
+    new_posts  = []  # post-debut appearances (tracked players) recorded this match
 
     for pid, pinfo in players.items():
         if pid in seen:
+            # Not a new debut. If they're a tracked player, check whether
+            # this match is one of their next post-debut appearances.
+            info = tracked.get(pid)
+            if info and target_date > info["debut_date"] and info["count"] < 5 and date_str not in info["dates"]:
+                pst  = stats.get(pid, {})
+                mins = pst.get("minutes", 0)
+                if mins > 0:
+                    tid = pinfo["team_id"]
+                    new_posts.append({
+                        "player_id":  pid,
+                        "name":       pinfo["name"],
+                        "match_date": date_str,
+                        "jornada":    jornada,
+                        "rival":      rival_of.get(tid, ""),
+                        "min":        mins,
+                        "rating":     pst.get("rating"),
+                    })
+                    info["dates"].add(date_str)
+                    info["count"] += 1
+                    print(f"      ↳  {pinfo['name']} post-debut #{info['count']}/5: {mins}′ vs {rival_of.get(tid, '')}")
             continue  # already appeared in a previous run — definitely not a debut
 
         dob = get_dob(pid, dob_cache)
@@ -350,19 +416,28 @@ def process_match(match, league_name, target_date, seen, dob_cache, dry_run):
         })
         print(f"      ★  {pinfo['name']} ({a} años) — {role}, {mins}′")
 
+        if mins > 0:
+            # Start post-debut tracking immediately (in-memory) so later
+            # matches in this same run — e.g. a multi-date backfill, not
+            # just the daily single-date cron — also pick up this player's
+            # next appearances, instead of only from the following run.
+            tracked[pid] = {"name": pinfo["name"], "debut_date": target_date, "count": 0, "dates": set()}
+
     # ── Step 4: Save to Supabase ─────────────────────────────────────────────
     if not dry_run:
         for row in new_debuts:
             save_debutante(row)
+        for row in new_posts:
+            save_post_debut(row)
         flush_seen(new_seen)   # one batch write for all new players
 
     label = "DRY RUN — " if dry_run else ""
-    print(f"      → {label}{len(new_debuts)} debut(s) found in this match")
+    print(f"      → {label}{len(new_debuts)} debut(s) found, {len(new_posts)} post-debut appearance(s) in this match")
     return True
 
 
 # ─── Core: one league on one date ─────────────────────────────────────────────
-def process_league_date(league_id, league_name, target_date, seen, dob_cache, progress, dry_run):
+def process_league_date(league_id, league_name, target_date, seen, dob_cache, tracked, progress, dry_run):
     date_str = target_date.isoformat()
     key = f"{league_id}:{date_str}"
 
@@ -392,7 +467,7 @@ def process_league_date(league_id, league_name, target_date, seen, dob_cache, pr
             print(f"    [{mid}] already processed — skipping (0 API calls)")
             continue
         try:
-            completed = process_match(match, league_name, target_date, seen, dob_cache, dry_run)
+            completed = process_match(match, league_name, target_date, seen, dob_cache, tracked, dry_run)
         except QuotaExhausted:
             raise  # stop everything — no point trying more matches/leagues/dates
         except Exception as e:
@@ -424,7 +499,13 @@ def main():
                      help="End of a date range")
     ap.add_argument( "--dry-run",   action="store_true",
                      help="Print debutantes without writing anything to Supabase")
+    ap.add_argument( "--league",    action="append", type=int, metavar="LEAGUE_ID",
+                     help="Restrict to this league id (repeatable). Default: all leagues in LEAGUES.")
     args = ap.parse_args()
+
+    leagues_to_run = {lid: name for lid, name in LEAGUES.items() if not args.league or lid in args.league}
+    if not leagues_to_run:
+        ap.error(f"--league didn't match any known league id: {list(LEAGUES)}")
 
     # Build list of dates to process
     if args.date:
@@ -446,26 +527,28 @@ def main():
             d += timedelta(days=1)
         print(f"No --date/--from given — defaulting to backfill {BACKFILL_FROM.isoformat()} → {end.isoformat()}")
 
-    print(f"Processing {len(dates)} date(s) × {len(LEAGUES)} league(s)…")
+    print(f"Processing {len(dates)} date(s) × {len(leagues_to_run)} league(s)…")
     if args.dry_run:
         print("*** DRY RUN — nothing will be written to Supabase ***\n")
 
     dob_cache = load_dob_cache()
     seen      = load_seen_players()
     progress  = load_progress()
+    tracked   = load_tracked_players()
     print(f"Loaded {len(seen)} already-seen player(s) from Supabase.")
     print(f"Loaded {len(progress['processed_matches'])} already-processed match(es) from progress.json.")
+    print(f"Loaded {len(tracked)} player(s) under post-debut tracking (<5 appearances recorded).")
 
     try:
         # Primera A fully before Primera B (LEAGUES dict order), across the
         # whole date range — so a quota stop leaves one league fully covered
         # rather than both leagues half-covered.
-        for league_id, league_name in LEAGUES.items():
+        for league_id, league_name in leagues_to_run.items():
             print(f"\n{'='*52}")
             print(f"  {league_name}")
             print(f"{'='*52}")
             for d in dates:
-                process_league_date(league_id, league_name, d, seen, dob_cache, progress, dry_run=args.dry_run)
+                process_league_date(league_id, league_name, d, seen, dob_cache, tracked, progress, dry_run=args.dry_run)
     except QuotaExhausted as e:
         print(f"\n[STOPPED] {e}")
         print("Run again once the daily quota resets to finish the remaining date(s)/league(s).")
