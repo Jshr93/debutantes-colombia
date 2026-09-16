@@ -193,6 +193,11 @@
         <button data-seg="star" aria-pressed="false">Destacados</button>
         <button data-seg="disc" aria-pressed="false">Descartados</button>
       </div>
+      <select id="orden-seg" aria-label="Ordenar">
+        <option value="recent">Más reciente</option>
+        <option value="minutes">Más minutos</option>
+        <option value="rating">Mejor nota</option>
+      </select>
       <span class="count" id="count-seg"></span>
     </div>
     <p class="legend-jr">Cada barra es un partido tras el debut · recuadro azul = debut · altura = minutos · número de abajo = nota.</p>
@@ -206,10 +211,9 @@
   const TODAY=new Date();
   const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-  // Datos reales — cargados desde la tabla 'debutantes' de Supabase en init().
-  // Nota: la tabla solo guarda la fila del debut de cada jugador (no partidos
-  // posteriores), así que `post` siempre queda vacío hasta que exista una
-  // fuente de datos de seguimiento post-debut.
+  // Datos reales — cargados desde Supabase en init(): 'debutantes' para el
+  // debut de cada jugador, 'post_debut' (unido por player_id) para sus
+  // siguientes apariciones, asignado a `post` en cada jugador.
   let P=[];
 
   const ROLE_TXT={titular:"de titular",cambio:"entró de cambio",banca:"convocado"};
@@ -218,6 +222,11 @@
     if(TODAY.getUTCMonth()<b.getUTCMonth()||(TODAY.getUTCMonth()===b.getUTCMonth()&&TODAY.getUTCDate()<b.getUTCDate()))a--;return a};
   const played=p=>p.debut.min>0;
   const isUni=p=>(p.agent||"").trim().toUpperCase()==="NO";
+  const totalMinutes=p=>p.debut.min+p.post.reduce((s,m)=>s+m.min,0);
+  function avgRating(p){
+    const rts=[p.debut.rt,...p.post.map(m=>m.rt)].filter(x=>x!=null);
+    return rts.length? rts.reduce((s,x)=>s+x,0)/rts.length : null;
+  }
   const tm=n=>"https://www.transfermarkt.com/schnellsuche/ergebnis/schnellsuche?query="+encodeURIComponent(n);
   function ratingHTML(rt){
     if(rt==null)return '<span class="rating r-na">—</span>';
@@ -225,7 +234,7 @@
     return `<span class="rating ${c}">${rt.toFixed(1)}</span>`;
   }
 
-  let fLiga="all",fTipo="all",fFecha="all",fSeg="all";
+  let fLiga="all",fTipo="all",fFecha="all",fSeg="all",fOrden="recent";
 
   function setTab(t){
     document.getElementById('tab-deb').setAttribute('aria-selected',t==='deb');
@@ -284,11 +293,22 @@
   const XI='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 
   function renderSeg(){
-    const rows=P.filter(p=>{
+    let rows=P.filter(p=>{
       if(fSeg==="star")return p.flag==="star";
       if(fSeg==="disc")return p.flag==="discard";
       return true; // "Todos" incluye descartados, en su lugar
     });
+    if(fOrden==="minutes"){
+      rows=rows.slice().sort((a,b)=>totalMinutes(b)-totalMinutes(a));
+    }else if(fOrden==="rating"){
+      rows=rows.slice().sort((a,b)=>{
+        const ra=avgRating(a),rb=avgRating(b);
+        if(ra==null&&rb==null)return 0;
+        if(ra==null)return 1;
+        if(rb==null)return -1;
+        return rb-ra;
+      });
+    } // "recent" keeps P's original order (already sorted by debut_date desc)
     document.getElementById('count-seg').textContent=rows.length+(rows.length===1?" jugador":" jugadores");
     document.getElementById('list-seg').innerHTML= rows.length? rows.map(p=>{
       const i=P.indexOf(p);
@@ -303,6 +323,7 @@
           <div class="jr">F${m.jr}</div><div class="rt">${m.rt==null?'<span class=r-na>—</span>':ratingHTML(m.rt)}</div></div>`;
       }).join('');
       const totalMin=p.post.reduce((s,m)=>s+m.min,0),conv=p.post.length;
+      const totalAll=totalMinutes(p),avgRt=avgRating(p);
       const uniBadge=uni?'<span class="uni-badge">🦄 Sin agente</span>':'';
       let acts;
       if(disc){
@@ -325,6 +346,7 @@
           <div class="track-sum">
             <span>Debut: <span class="fv">Fecha ${p.debut.jr} · ${p.debut.min}′ · nota ${p.debut.rt==null?'—':p.debut.rt.toFixed(1)}</span></span>
             <span>Post-debut: <span class="fv ${totalMin>0?'hot':''}">${conv} conv. · ${totalMin}′</span></span>
+            <span>Total: <span class="fv ${totalAll>0?'hot':''}">${totalAll}′ · nota prom. ${avgRt==null?'—':avgRt.toFixed(1)}</span></span>
           </div>
           <div class="spark">${bars}</div>
         </div>
@@ -348,6 +370,7 @@
       const { data, error } = await sb.from('debutantes').select('*').order('debut_date', { ascending: false });
       if (error) { console.error('Supabase debutantes load:', error.message); return []; }
       return (data || []).map(row => ({
+        player_id: row.player_id,
         name: row.name,
         dob: row.dob,
         club: row.club || '',
@@ -369,6 +392,27 @@
     } catch (e) {
       console.error('Supabase debutantes load (exception):', e);
       return [];
+    }
+  }
+
+  async function loadPostDebut() {
+    try {
+      const { data, error } = await sb.from('post_debut').select('*').order('match_date', { ascending: true });
+      if (error) { console.error('Supabase post_debut load:', error.message); return {}; }
+      const byPlayer = {};
+      (data || []).forEach(row => {
+        (byPlayer[row.player_id] ||= []).push({
+          jr:  row.jornada,
+          date: row.match_date,
+          rival: row.rival || '',
+          min: row.min ?? 0,
+          rt:  row.rating ?? null,
+        });
+      });
+      return byPlayer;
+    } catch (e) {
+      console.error('Supabase post_debut load (exception):', e);
+      return {};
     }
   }
 
@@ -395,6 +439,8 @@
   function restore(i){P[i].flag=null;saveStatus(P[i]);statsSeg();renderSeg()}
   function setAgent(i,v){P[i].agent=v.trim();saveStatus(P[i]);statsSeg();renderSeg()}
 
+  document.getElementById('orden-seg').onchange=e=>{fOrden=e.target.value;renderSeg()};
+
   document.querySelectorAll('.seg').forEach(seg=>{
     seg.addEventListener('click',e=>{
       const b=e.target.closest('button');if(!b)return;
@@ -411,6 +457,8 @@
     document.getElementById('list-deb').innerHTML = '<div class="empty">Cargando datos...</div>';
     document.getElementById('list-seg').innerHTML = '<div class="empty">Cargando datos...</div>';
     P = await loadDebutantes();
+    const postByPlayer = await loadPostDebut();
+    P.forEach(p => { p.post = postByPlayer[p.player_id] || []; });
     await loadStatuses();
     fechasList(); statsDeb(); renderDeb(); statsSeg(); renderSeg();
   }
