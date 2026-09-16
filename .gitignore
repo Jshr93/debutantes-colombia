@@ -1,0 +1,16 @@
+# Credentials — never commit this file
+.env
+
+# Local engine caches — machine-specific, regenerated automatically
+dob_cache.json
+progress.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment (if you create one)
+venv/
+.venv/
+env/

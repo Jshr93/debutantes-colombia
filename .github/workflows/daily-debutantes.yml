@@ -1,0 +1,34 @@
+name: Daily debutantes run
+
+on:
+  # 12:00 UTC = 07:00 Colombia time (Colombia is UTC-5, no daylight saving)
+  schedule:
+    - cron: "0 12 * * *"
+  # Lets you click "Run workflow" in the Actions tab to test on demand
+  workflow_dispatch: {}
+
+jobs:
+  run-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compute yesterday's date
+        id: yesterday
+        run: echo "date=$(date -u -d 'yesterday' +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Run debutantes engine for yesterday
+        env:
+          HIGHLIGHTLY_KEY: ${{ secrets.HIGHLIGHTLY_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python engine.py --date "${{ steps.yesterday.outputs.date }}"
