@@ -203,32 +203,14 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  const TODAY=new Date('2026-09-14');
+  const TODAY=new Date();
   const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-  // Datos de ejemplo (en la app real vienen de Supabase). Nombres ficticios. rt = nota API-Football (0-10, null si no hay).
-  const P=[
-    {name:"Kevin Moreno",dob:"2009-01-04",club:"Orsomarso SC",liga:"Primera B",pos:"Delantero",shirt:29,agent:"NO",flag:null,
-     debut:{jr:11,date:"2026-09-13",rival:"Real Cartagena",role:"titular",min:64,rt:7.2},
-     post:[{jr:12,rival:"Atlético FC",min:78,rt:7.0},{jr:13,rival:"Llaneros",min:0,rt:null},{jr:14,rival:"Dep. Quindío",min:74,rt:7.5}]},
-    {name:"Deiver Angulo",dob:"2009-03-11",club:"Boyacá Chicó",liga:"Primera B",pos:"Extremo",shirt:37,agent:"",flag:"star",
-     debut:{jr:11,date:"2026-09-14",rival:"Cúcuta Deportivo",role:"titular",min:90,rt:7.8},
-     post:[{jr:12,rival:"Orsomarso SC",min:90,rt:8.1},{jr:13,rival:"Real Cartagena",min:85,rt:7.6}]},
-    {name:"Santiago Rojas",dob:"2007-05-20",club:"Deportivo Cali",liga:"Primera A",pos:"Volante central",shirt:26,agent:"Base Soccer",flag:null,
-     debut:{jr:10,date:"2026-09-12",rival:"Once Caldas",role:"cambio",min:22,rt:6.7},
-     post:[{jr:11,rival:"Junior",min:31,rt:6.9},{jr:12,rival:"Nacional",min:45,rt:7.1}]},
-    {name:"Miguel A. Tenorio",dob:"2008-08-02",club:"Cúcuta Deportivo",liga:"Primera B",pos:"Defensa central",shirt:24,agent:"",flag:null,
-     debut:{jr:11,date:"2026-09-13",rival:"Atlético FC",role:"titular",min:90,rt:7.0},
-     post:[{jr:12,rival:"Boyacá Chicó",min:90,rt:6.8}]},
-    {name:"Juan D. Palacios",dob:"2010-02-18",club:"Real Cartagena",liga:"Primera B",pos:"Lateral derecho",shirt:33,agent:"",flag:null,
-     debut:{jr:11,date:"2026-09-13",rival:"Boyacá Chicó",role:"banca",min:0,rt:null},
-     post:[{jr:12,rival:"Cúcuta Deportivo",min:0,rt:null}]},
-    {name:"Cristian Lucumí",dob:"2007-11-15",club:"Once Caldas",liga:"Primera A",pos:"Volante central",shirt:28,agent:"Fair Play Agency",flag:null,
-     debut:{jr:10,date:"2026-09-12",rival:"Deportivo Cali",role:"banca",min:0,rt:null},
-     post:[{jr:11,rival:"Millonarios",min:0,rt:null},{jr:12,rival:"Tolima",min:12,rt:6.5}]},
-    {name:"Andrés Villaquirán",dob:"2006-06-09",club:"Atlético Bucaramanga",liga:"Primera A",pos:"Delantero",shirt:19,agent:"",flag:"discard",
-     debut:{jr:12,date:"2026-09-14",rival:"Águilas Doradas",role:"cambio",min:15,rt:6.4},post:[]},
-  ];
+  // Datos reales — cargados desde la tabla 'debutantes' de Supabase en init().
+  // Nota: la tabla solo guarda la fila del debut de cada jugador (no partidos
+  // posteriores), así que `post` siempre queda vacío hasta que exista una
+  // fuente de datos de seguimiento post-debut.
+  let P=[];
 
   const ROLE_TXT={titular:"de titular",cambio:"entró de cambio",banca:"convocado"};
   const fmtDate=iso=>{const d=new Date(iso);return `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} ${d.getUTCFullYear()}`};
@@ -254,7 +236,7 @@
 
   /* Ventana 1 */
   function fechasList(){
-    const set=[...new Set(P.map(p=>p.debut.jr))].sort((a,b)=>a-b);
+    const set=[...new Set(P.map(p=>p.debut.jr).filter(jr=>jr!=null))].sort((a,b)=>a-b);
     const s=document.getElementById('fecha');
     s.innerHTML='<option value="all">Todas las fechas</option>'+set.map(j=>`<option value="${j}">Fecha ${j}</option>`).join('');
     s.onchange=e=>{fFecha=e.target.value;renderDeb()};
@@ -273,11 +255,11 @@
       return `<article class="row">
         <div class="age"><b>${age(p.dob)}</b><span>años</span></div>
         <div class="main">
-          <div class="name-row"><span class="name">${p.name}</span><span class="pos">${p.pos}</span></div>
+          <div class="name-row"><span class="name">${p.name}</span><span class="pos">${p.pos||'—'}</span></div>
           <div class="club">${p.club}<span class="tag">${p.liga}</span></div>
           <div class="match">vs ${p.debut.rival} — Fecha ${p.debut.jr}, ${fmtDate(p.debut.date)}</div>
           <div class="facts">
-            <div class="fact"><div class="fl">Dorsal</div><div class="fv">${p.shirt}</div></div>
+            <div class="fact"><div class="fl">Dorsal</div><div class="fv">${p.shirt??'—'}</div></div>
             <div class="fact"><div class="fl">Nacimiento</div><div class="fv">${fmtDate(p.dob)}</div></div>
             <div class="fact"><div class="fl">Minutos</div><div class="fv ${pl?'min':'min0'}">${minTxt}</div></div>
             <div class="fact"><div class="fl">Nota</div><div class="fv">${ratingHTML(p.debut.rt)}</div></div>
@@ -288,7 +270,7 @@
           <a class="tm" href="${tm(p.name)}" target="_blank" rel="noopener">Transfermarkt</a>
         </div>
       </article>`;
-    }).join(''):'<div class="empty">No hay debutantes con estos filtros.</div>';
+    }).join(''):`<div class="empty">${P.length?'No hay debutantes con estos filtros.':'Todavía no hay debutantes registrados.'}</div>`;
   }
   function statsDeb(){
     document.getElementById('s-total').textContent=P.length;
@@ -338,7 +320,7 @@
       return `<article class="row ${cls}">
         <div class="age"><b>${age(p.dob)}</b><span>años</span></div>
         <div class="main">
-          <div class="name-row"><span class="name">${p.name}</span><span class="pos">${p.pos}</span>${uniBadge}</div>
+          <div class="name-row"><span class="name">${p.name}</span><span class="pos">${p.pos||'—'}</span>${uniBadge}</div>
           <div class="club">${p.club}<span class="tag">${p.liga}</span></div>
           <div class="track-sum">
             <span>Debut: <span class="fv">Fecha ${p.debut.jr} · ${p.debut.min}′ · nota ${p.debut.rt==null?'—':p.debut.rt.toFixed(1)}</span></span>
@@ -348,7 +330,7 @@
         </div>
         <div class="acts">${acts}</div>
       </article>`;
-    }).join(''):'<div class="empty">No hay jugadores en esta vista.</div>';
+    }).join(''):`<div class="empty">${P.length?'No hay jugadores en esta vista.':'Todavía no hay debutantes registrados.'}</div>`;
   }
   function statsSeg(){
     document.getElementById('s-year').textContent=P.filter(p=>p.flag!=="discard").length;
@@ -360,6 +342,35 @@
     'https://extcnlqlsxzosdzbqphi.supabase.co',
     'sb_publishable_P_D-N5U6BAsT6Ia59Z_bHQ_78dq69uc'
   );
+
+  async function loadDebutantes() {
+    try {
+      const { data, error } = await sb.from('debutantes').select('*').order('debut_date', { ascending: false });
+      if (error) { console.error('Supabase debutantes load:', error.message); return []; }
+      return (data || []).map(row => ({
+        name: row.name,
+        dob: row.dob,
+        club: row.club || '',
+        liga: row.liga || '',
+        pos: row.pos || '',
+        shirt: row.shirt ?? null,
+        agent: '',
+        flag: null,
+        debut: {
+          jr: row.jornada,
+          date: row.debut_date,
+          rival: row.rival || '',
+          role: row.role,
+          min: row.min ?? 0,
+          rt: row.rating ?? null,
+        },
+        post: [],
+      }));
+    } catch (e) {
+      console.error('Supabase debutantes load (exception):', e);
+      return [];
+    }
+  }
 
   async function loadStatuses() {
     const { data, error } = await sb.from('player_status').select('player_name,flag,agent');
@@ -397,7 +408,9 @@
   });
 
   async function init() {
+    document.getElementById('list-deb').innerHTML = '<div class="empty">Cargando datos...</div>';
     document.getElementById('list-seg').innerHTML = '<div class="empty">Cargando datos...</div>';
+    P = await loadDebutantes();
     await loadStatuses();
     fechasList(); statsDeb(); renderDeb(); statsSeg(); renderSeg();
   }
