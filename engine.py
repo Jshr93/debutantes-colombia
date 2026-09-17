@@ -9,6 +9,10 @@ Usage:
     python engine.py --date 2026-09-14
     python engine.py --from 2026-07-01 --to 2026-09-14
     python engine.py --date 2026-09-14 --dry-run   # prints without saving
+    python engine.py --date 2026-09-14 --notify    # also sends Telegram messages
+                                                     # for each real debut (off by
+                                                     # default — use only for the
+                                                     # daily run, never a backfill)
     python engine.py                               # default: full backfill,
                                                      # 2026-07-01 -> today,
                                                      # Primera A then Primera B
@@ -81,6 +85,11 @@ load_dotenv()
 API_KEY = os.environ["HIGHLIGHTLY_KEY"]
 SB_URL  = os.environ["SUPABASE_URL"]
 SB_KEY  = os.environ["SUPABASE_KEY"]
+
+# Telegram is optional — a missing token/chat id just disables notifications
+# (see send_telegram_notification), it never raises.
+TELEGRAM_TOKEN   = os.environ.get("TELEGRAM_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 # Dict order is traversal order: Primera A is always processed before Primera B.
@@ -217,6 +226,40 @@ def age_at(dob_str, on_date):
         a -= 1  # birthday hasn't come yet this year
     return a
 
+# ─── Telegram notifications ───────────────────────────────────────────────────
+def send_telegram_notification(row, target_date):
+    """
+    Send a Telegram message for one real debut (row["role"] is "titular" or
+    "cambio" — never called for "banca" rows). Silently does nothing if
+    TELEGRAM_TOKEN/TELEGRAM_CHAT_ID aren't set, and never raises — a Telegram
+    failure must not break the engine or block a Supabase write.
+    """
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        age = age_at(row.get("dob"), target_date)
+        age_str = f"{age} años" if age is not None else "edad desconocida"
+        torneo = "Apertura" if target_date.month <= 6 else "Clausura"
+        role_str = "de titular" if row["role"] == "titular" else "entró de cambio"
+
+        lines = [
+            "⚽ NUEVO DEBUT — CSA Debut Tracker",
+            f"{row['name']}, {age_str}",
+            f"{row['club']} · {row['liga']}",
+            f"vs {row['rival']} — Fecha {row['jornada']} · {torneo} {target_date.year}",
+            f"{row['min']}′ · {role_str}",
+        ]
+        if row.get("rating") is not None:
+            lines.append(f"Nota: {row['rating']}")
+
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            data={"chat_id": TELEGRAM_CHAT_ID, "text": "\n".join(lines)},
+            timeout=10,
+        )
+    except Exception as e:
+        print(f"      [WARN] Telegram notification failed: {e}")
+
 # ─── Supabase helpers ─────────────────────────────────────────────────────────
 def load_seen_players():
     """
@@ -311,7 +354,7 @@ def _flatten(entries):
             yield entry
 
 # ─── Core: one match ──────────────────────────────────────────────────────────
-def process_match(match, league_name, target_date, seen, bench, dob_cache, tracked, dry_run):
+def process_match(match, league_name, target_date, seen, bench, dob_cache, tracked, dry_run, notify):
     """
     Returns True if the match was fully read (lineup + box-score available,
     debut decision made) — safe to mark as processed and never fetch again.
@@ -449,7 +492,7 @@ def process_match(match, league_name, target_date, seen, bench, dob_cache, track
             # ── GRADUATION: first match with min > 0 → this is the real debut ──
             dob  = get_dob(pid, dob_cache)  # already cached from when first benched
             role = "titular" if pinfo["in_xi"] else "cambio"
-            new_debuts.append({
+            debut_row = {
                 "player_id": pid, "name": pinfo["name"], "dob": dob,
                 "club": team_names.get(tid, ""), "liga": league_name,
                 "pos": pinfo.get("pos") or pst.get("pos"),
@@ -457,9 +500,12 @@ def process_match(match, league_name, target_date, seen, bench, dob_cache, track
                 "debut_date": date_str, "jornada": jornada,
                 "rival": rival_of.get(tid, ""), "role": role,
                 "min": mins, "rating": pst.get("rating"),
-            })
+            }
+            new_debuts.append(debut_row)
             print(f"      ★  {pinfo['name']} — DEBUTA (was solo al banco) — {role}, {mins}′")
             n_grad += 1
+            if notify:
+                send_telegram_notification(debut_row, target_date)
             bench.discard(pid)
             new_seen.append({"player_id": pid, "name": pinfo["name"], "first_seen": date_str})
             seen.add(pid)
@@ -479,7 +525,7 @@ def process_match(match, league_name, target_date, seen, bench, dob_cache, track
         # ── Under 21, first-ever sighting ─────────────────────────────────
         if mins > 0:
             role = "titular" if pinfo["in_xi"] else "cambio"
-            new_debuts.append({
+            debut_row = {
                 "player_id": pid, "name": pinfo["name"], "dob": dob,
                 "club": team_names.get(tid, ""), "liga": league_name,
                 "pos": pinfo.get("pos") or pst.get("pos"),
@@ -487,9 +533,12 @@ def process_match(match, league_name, target_date, seen, bench, dob_cache, track
                 "debut_date": date_str, "jornada": jornada,
                 "rival": rival_of.get(tid, ""), "role": role,
                 "min": mins, "rating": pst.get("rating"),
-            })
+            }
+            new_debuts.append(debut_row)
             print(f"      ★  {pinfo['name']} ({a} años) — {role}, {mins}′")
             n_real += 1
+            if notify:
+                send_telegram_notification(debut_row, target_date)
             new_seen.append({"player_id": pid, "name": pinfo["name"], "first_seen": date_str})
             seen.add(pid)
             tracked[pid] = {"name": pinfo["name"], "debut_date": target_date, "count": 0, "dates": set()}
@@ -523,7 +572,7 @@ def process_match(match, league_name, target_date, seen, bench, dob_cache, track
 
 
 # ─── Core: one league on one date ─────────────────────────────────────────────
-def process_league_date(league_id, league_name, target_date, seen, bench, dob_cache, tracked, progress, dry_run):
+def process_league_date(league_id, league_name, target_date, seen, bench, dob_cache, tracked, progress, dry_run, notify):
     date_str = target_date.isoformat()
     key = f"{league_id}:{date_str}"
 
@@ -553,7 +602,7 @@ def process_league_date(league_id, league_name, target_date, seen, bench, dob_ca
             print(f"    [{mid}] already processed — skipping (0 API calls)")
             continue
         try:
-            completed = process_match(match, league_name, target_date, seen, bench, dob_cache, tracked, dry_run)
+            completed = process_match(match, league_name, target_date, seen, bench, dob_cache, tracked, dry_run, notify)
         except QuotaExhausted:
             raise  # stop everything — no point trying more matches/leagues/dates
         except Exception as e:
@@ -587,6 +636,9 @@ def main():
                      help="Print debutantes without writing anything to Supabase")
     ap.add_argument( "--league",    action="append", type=int, metavar="LEAGUE_ID",
                      help="Restrict to this league id (repeatable). Default: all leagues in LEAGUES.")
+    ap.add_argument( "--notify",    action="store_true",
+                     help="Send a Telegram message for each real debut found. Off by default so "
+                          "backfills/rebuilds don't spam — pass this only for the daily run.")
     args = ap.parse_args()
 
     leagues_to_run = {lid: name for lid, name in LEAGUES.items() if not args.league or lid in args.league}
@@ -616,6 +668,8 @@ def main():
     print(f"Processing {len(dates)} date(s) × {len(leagues_to_run)} league(s)…")
     if args.dry_run:
         print("*** DRY RUN — nothing will be written to Supabase ***\n")
+    if args.notify:
+        print("*** --notify is ON — a Telegram message will be sent for each real debut ***\n")
 
     dob_cache = load_dob_cache()
     seen      = load_seen_players()
@@ -636,7 +690,8 @@ def main():
             print(f"  {league_name}")
             print(f"{'='*52}")
             for d in dates:
-                process_league_date(league_id, league_name, d, seen, bench, dob_cache, tracked, progress, dry_run=args.dry_run)
+                process_league_date(league_id, league_name, d, seen, bench, dob_cache, tracked, progress,
+                                     dry_run=args.dry_run, notify=args.notify)
     except QuotaExhausted as e:
         print(f"\n[STOPPED] {e}")
         print("Run again once the daily quota resets to finish the remaining date(s)/league(s).")
