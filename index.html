@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Debutantes Colombia — CSA</title>
+<title>CSA Debut Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --navy:#16202E; --page:#ECEFF3; --card:#FFFFFF;
+    --brand:#33413E; --brand-soft:#B9C7C3; --page:#ECEFF3; --card:#FFFFFF;
     --ink:#171B21; --muted:#626B78; --faint:#8A94A1; --line:#E4E8ED;
     --go:#0F5F34;    --go-bg:#E4F3EA;   --go-bar:#2AA35F;
     --bench:#8A5410; --bench-bg:#F8EDD9;
@@ -26,24 +26,26 @@
   .wrap{max-width:860px;margin:0 auto;padding:0 16px 56px}
   h1,h2{margin:0}
 
-  .top{background:var(--navy);color:#fff;padding:22px 16px 0}
+  .top{background:var(--card);color:var(--ink);padding:22px 16px 0;border-bottom:1px solid var(--line)}
   .top-inner{max-width:860px;margin:0 auto}
-  .top-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
-  .brand h1{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:30px;line-height:1.05;letter-spacing:.2px}
-  .brand p{margin:4px 0 0;color:#A9B6C6;font-size:14px}
-  .upd{text-align:right;color:#C4D0DE;font-size:12.5px}
-  .upd b{display:block;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;color:#fff;font-size:15px}
-  .upd small{color:#8595A8;font-size:11.5px}
+  .top-row{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:16px}
+  .logo{height:40px;width:auto;display:block}
+  .brand h1{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:28px;line-height:1.05;letter-spacing:.2px;color:var(--brand)}
+  .brand p{margin:4px 0 0;color:var(--muted);font-size:14px}
+  .upd{text-align:right;color:var(--muted);font-size:12.5px}
+  .upd b{display:block;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;color:var(--ink);font-size:15px}
+  .upd small{color:var(--faint);font-size:11.5px}
   .tabs{display:flex;gap:4px;margin-top:16px}
-  .tab{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:16px;color:#9DB0C4;
+  .tab{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:16px;color:var(--muted);
     background:none;border:0;padding:11px 16px;cursor:pointer;border-bottom:3px solid transparent;letter-spacing:.2px}
-  .tab[aria-selected="true"]{color:#fff;border-bottom-color:#2AA35F}
-  .tab:focus-visible{outline:2px solid #2AA35F;outline-offset:-3px}
+  .tab[aria-selected="true"]{color:var(--brand);border-bottom-color:var(--brand)}
+  .tab:focus-visible{outline:2px solid var(--brand);outline-offset:-3px}
 
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
     border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:18px 0}
   .stat{background:var(--card);padding:13px 16px}
-  .stat .n{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:26px;line-height:1}
+  .stat .n{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:26px;line-height:1;color:var(--brand)}
   .stat .l{color:var(--muted);font-size:12.5px;margin-top:3px}
   .stat.go .n{color:var(--go)} .stat.bench .n{color:var(--bench)} .stat.gold .n{color:var(--gold-bar)}
 
@@ -51,23 +53,23 @@
   .seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px}
   .seg button{font-family:inherit;font-size:13.5px;color:var(--muted);background:none;border:0;
     padding:6px 13px;border-radius:999px;cursor:pointer;white-space:nowrap}
-  .seg button[aria-pressed="true"]{background:var(--navy);color:#fff;font-weight:500}
-  .seg button:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+  .seg button[aria-pressed="true"]{background:var(--brand);color:#fff;font-weight:500}
+  .seg button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   select{font-family:inherit;font-size:13.5px;color:var(--ink);background:var(--card);border:1px solid var(--line);
     border-radius:999px;padding:7px 30px 7px 14px;cursor:pointer;appearance:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23626B78' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat:no-repeat;background-position:right 12px center}
-  select:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+  select:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   .count{margin-left:auto;color:var(--faint);font-size:13px}
 
   .list{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
   .row{display:flex;gap:15px;padding:16px;border-top:1px solid var(--line)}
   .row:first-child{border-top:0}
   .row:hover{background:#FAFBFC}
-  .age{flex:0 0 auto;width:58px;height:58px;border-radius:10px;background:var(--navy);color:#fff;
+  .age{flex:0 0 auto;width:58px;height:58px;border-radius:10px;background:var(--brand);color:#fff;
     display:flex;flex-direction:column;align-items:center;justify-content:center}
   .age b{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700;font-size:29px;line-height:.9}
-  .age span{font-size:10.5px;color:#9DB0C4;margin-top:2px}
+  .age span{font-size:10.5px;color:var(--brand-soft);margin-top:2px}
   .main{flex:1 1 auto;min-width:0}
   .name-row{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
   .name{font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:20px;line-height:1.1}
@@ -84,7 +86,7 @@
   .side{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
   .pill{font-size:12.5px;font-weight:500;padding:4px 11px;border-radius:999px;white-space:nowrap}
   .pill.go{color:var(--go);background:var(--go-bg)} .pill.bench{color:var(--bench);background:var(--bench-bg)}
-  .tm{font-size:12.5px;color:var(--navy);text-decoration:none;border:1px solid var(--line);padding:4px 10px;border-radius:8px;background:var(--card);cursor:pointer;font-family:inherit}
+  .tm{font-size:12.5px;color:var(--brand);text-decoration:none;border:1px solid var(--line);padding:4px 10px;border-radius:8px;background:var(--card);cursor:pointer;font-family:inherit}
   .tm:hover{border-color:#C7CFDA;background:#F6F8FA}
   .rating{font-family:'Barlow Semi Condensed',sans-serif;font-weight:700}
   .r-hi{color:var(--go)} .r-mid{color:var(--muted)} .r-lo{color:var(--red)} .r-na{color:var(--faint)}
@@ -96,7 +98,7 @@
   .bar .col{width:100%;height:40px;background:#F0F2F5;border-radius:4px;display:flex;align-items:flex-end;overflow:hidden}
   .bar .fill{width:100%;background:var(--go-bar);border-radius:4px 4px 0 0}
   .bar.zero .fill{background:#CBD2DA;min-height:3px}
-  .bar.debut .col{outline:2px solid var(--navy);outline-offset:1px}
+  .bar.debut .col{outline:2px solid var(--brand);outline-offset:1px}
   .bar .jr{font-size:10px;color:var(--faint)}
   .bar .rt{font-size:11px;font-weight:700;font-family:'Barlow Semi Condensed',sans-serif;line-height:1}
   .track-sum{display:flex;gap:18px;flex-wrap:wrap;margin-top:9px}
@@ -107,7 +109,7 @@
   .icon{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--card);
     display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);padding:0}
   .icon:hover{border-color:#C7CFDA;background:#F6F8FA}
-  .icon:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+  .icon:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   .icon svg{width:18px;height:18px}
   .icon.on{background:var(--star-bg);border-color:var(--star-line);color:var(--star)}
   .agente{width:100%}
@@ -115,7 +117,7 @@
   .agente input{width:100%;font-family:inherit;font-size:13px;color:var(--ink);background:var(--card);
     border:1px solid var(--line);border-radius:8px;padding:6px 9px}
   .agente input::placeholder{color:var(--faint)}
-  .agente input:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
+  .agente input:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
   .agente input.alert{border-color:var(--gold-line);background:var(--gold-bg);color:var(--gold);font-weight:600}
   .row.is-star{background:var(--star-bg)}
   .row.is-star:hover{background:#EAF4EE}
@@ -133,6 +135,9 @@
     .side{flex-direction:row;align-items:center;width:100%;padding-left:73px}
     .acts{width:100%;align-items:stretch;padding-left:73px}
     .acts .act-btns{justify-content:flex-start}
+    .brand{gap:10px}
+    .logo{height:32px}
+    .brand h1{font-size:22px}
   }
 </style>
 </head>
@@ -142,8 +147,11 @@
   <div class="top-inner">
     <div class="top-row">
       <div class="brand">
-        <h1>Debutantes Colombia</h1>
-        <p>Primera A y B — jugadores sub-21</p>
+        <img class="logo" src="logo-header.png" alt="CSA Football Group">
+        <div>
+          <h1>CSA Debut Tracker</h1>
+          <p>Primera A y B — jugadores sub-21</p>
+        </div>
       </div>
       <div class="upd">Última actualización<b>14 sep 2026, 22:40</b><small>Se actualiza en cada jornada</small></div>
     </div>
@@ -200,7 +208,7 @@
       </select>
       <span class="count" id="count-seg"></span>
     </div>
-    <p class="legend-jr">Cada barra es un partido tras el debut · recuadro azul = debut · altura = minutos · número de abajo = nota.</p>
+    <p class="legend-jr">Cada barra es un partido tras el debut · recuadro marcado = debut · altura = minutos · número de abajo = nota · letra (A/C) = Apertura/Clausura.</p>
     <section class="list" id="list-seg" aria-live="polite"></section>
   </section>
 
@@ -217,6 +225,13 @@
   let P=[];
 
   const ROLE_TXT={titular:"de titular",cambio:"entró de cambio",banca:"convocado"};
+  // Colombia juega dos torneos por año: Apertura (ene-jun) y Clausura (jul-dic).
+  function semestre(iso){
+    const d=new Date(iso);
+    const y=d.getUTCFullYear();
+    const sem=(d.getUTCMonth()+1)<=6?1:2;
+    return {y,sem,label:(sem===1?'Apertura':'Clausura')+' '+y};
+  }
   const fmtDate=iso=>{const d=new Date(iso);return `${d.getUTCDate()} ${MESES[d.getUTCMonth()]} ${d.getUTCFullYear()}`};
   const age=iso=>{const b=new Date(iso);let a=TODAY.getUTCFullYear()-b.getUTCFullYear();
     if(TODAY.getUTCMonth()<b.getUTCMonth()||(TODAY.getUTCMonth()===b.getUTCMonth()&&TODAY.getUTCDate()<b.getUTCDate()))a--;return a};
@@ -245,9 +260,16 @@
 
   /* Ventana 1 */
   function fechasList(){
-    const set=[...new Set(P.map(p=>p.debut.jr).filter(jr=>jr!=null))].sort((a,b)=>a-b);
+    const map=new Map();
+    P.forEach(p=>{
+      if(p.debut.jr==null)return;
+      const s=semestre(p.debut.date);
+      const key=s.label+'|'+p.debut.jr;
+      if(!map.has(key))map.set(key,{key,label:s.label,jr:p.debut.jr,y:s.y,sem:s.sem});
+    });
+    const list=[...map.values()].sort((a,b)=>a.y-b.y||a.sem-b.sem||a.jr-b.jr);
     const s=document.getElementById('fecha');
-    s.innerHTML='<option value="all">Todas las fechas</option>'+set.map(j=>`<option value="${j}">Fecha ${j}</option>`).join('');
+    s.innerHTML='<option value="all">Todas las fechas</option>'+list.map(x=>`<option value="${x.key}">${x.label} · Fecha ${x.jr}</option>`).join('');
     s.onchange=e=>{fFecha=e.target.value;renderDeb()};
   }
   function renderDeb(){
@@ -255,7 +277,7 @@
       if(fLiga!=="all"&&p.liga!==fLiga)return false;
       if(fTipo==="played"&&!played(p))return false;
       if(fTipo==="bench"&&played(p))return false;
-      if(fFecha!=="all"&&String(p.debut.jr)!==fFecha)return false;
+      if(fFecha!=="all"&&(semestre(p.debut.date).label+'|'+p.debut.jr)!==fFecha)return false;
       return true;
     });
     document.getElementById('count-deb').textContent=rows.length+(rows.length===1?" jugador":" jugadores");
@@ -266,7 +288,7 @@
         <div class="main">
           <div class="name-row"><span class="name">${p.name}</span><span class="pos">${p.pos||'—'}</span></div>
           <div class="club">${p.club}<span class="tag">${p.liga}</span></div>
-          <div class="match">vs ${p.debut.rival} — Fecha ${p.debut.jr}, ${fmtDate(p.debut.date)}</div>
+          <div class="match">vs ${p.debut.rival} — Fecha ${p.debut.jr} · ${semestre(p.debut.date).label} · ${fmtDate(p.debut.date)}</div>
           <div class="facts">
             <div class="fact"><div class="fl">Dorsal</div><div class="fv">${p.shirt??'—'}</div></div>
             <div class="fact"><div class="fl">Nacimiento</div><div class="fv">${fmtDate(p.dob)}</div></div>
@@ -314,13 +336,15 @@
       const i=P.indexOf(p);
       const disc=p.flag==="discard",uni=isUni(p)&&!disc;
       const cls=[p.flag==="star"?"is-star":"",disc?"is-discard":"",uni?"is-uni":""].join(' ').trim();
-      const matches=[{jr:p.debut.jr,min:p.debut.min,rt:p.debut.rt,debut:true},...p.post];
+      const matches=[{jr:p.debut.jr,date:p.debut.date,min:p.debut.min,rt:p.debut.rt,debut:true},...p.post];
       const bars=matches.map(m=>{
         const h=Math.max(Math.round((m.min/90)*100),m.min?8:0);
-        return `<div class="bar ${m.min===0?'zero':''} ${m.debut?'debut':''}">
+        const s=semestre(m.date);
+        const jrLabel=(s.sem===1?'A':'C')+(m.jr??'?');
+        return `<div class="bar ${m.min===0?'zero':''} ${m.debut?'debut':''}" title="${s.label} · Fecha ${m.jr??'—'}">
           <div class="mn">${m.min}′</div>
           <div class="col"><div class="fill" style="height:${h}%"></div></div>
-          <div class="jr">F${m.jr}</div><div class="rt">${m.rt==null?'<span class=r-na>—</span>':ratingHTML(m.rt)}</div></div>`;
+          <div class="jr">${jrLabel}</div><div class="rt">${m.rt==null?'<span class=r-na>—</span>':ratingHTML(m.rt)}</div></div>`;
       }).join('');
       const totalMin=p.post.reduce((s,m)=>s+m.min,0),conv=p.post.length;
       const totalAll=totalMinutes(p),avgRt=avgRating(p);
@@ -344,7 +368,7 @@
           <div class="name-row"><span class="name">${p.name}</span><span class="pos">${p.pos||'—'}</span>${uniBadge}</div>
           <div class="club">${p.club}<span class="tag">${p.liga}</span></div>
           <div class="track-sum">
-            <span>Debut: <span class="fv">Fecha ${p.debut.jr} · ${p.debut.min}′ · nota ${p.debut.rt==null?'—':p.debut.rt.toFixed(1)}</span></span>
+            <span>Debut: <span class="fv">Fecha ${p.debut.jr} · ${semestre(p.debut.date).label} · ${p.debut.min}′ · nota ${p.debut.rt==null?'—':p.debut.rt.toFixed(1)}</span></span>
             <span>Post-debut: <span class="fv ${totalMin>0?'hot':''}">${conv} conv. · ${totalMin}′</span></span>
             <span>Total: <span class="fv ${totalAll>0?'hot':''}">${totalAll}′ · nota prom. ${avgRt==null?'—':avgRt.toFixed(1)}</span></span>
           </div>
