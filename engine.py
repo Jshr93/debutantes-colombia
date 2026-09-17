@@ -13,16 +13,39 @@ Usage:
                                                      # 2026-07-01 -> today,
                                                      # Primera A then Primera B
 
+Debut definition:
+  - A DEBUT is a player's first match with minutesPlayed > 0. Appearing only
+    on the bench (min = 0) is NOT a debut.
+  - Under-21 players go through two states in the 'debutantes' table:
+      "banca"              — seen in a squad, under 21, min = 0 so far.
+                              Shown as "solo al banco / por debutar".
+      "titular" / "cambio" — min > 0 in some match. This is the real debut;
+                              it overwrites any earlier "banca" row for the
+                              same player (debutantes is upserted on
+                              player_id alone, one row per player).
+  - A "banca" player is NOT added to seen_players, so every future match
+    re-checks whether they've finally played. Only once a player is a real
+    debutante (or turns out to be 21+/DOB-unknown) are they added to
+    seen_players and permanently skipped.
+  - Requires a UNIQUE constraint on debutantes.player_id in Supabase (the
+    upsert target changed from (player_id, debut_date) to player_id, since
+    each player now has at most one row).
+
 Quota-saving notes:
   - A player's birthdate, once fetched, is cached forever in dob_cache.json —
     it is never requested from the API twice.
-  - A player already in the seen_players table is never sent to /players/{id}
-    again, on any later date.
+  - A player already in the seen_players table (adult, DOB-unknown, or a
+    locked-in real debutante) is never sent to /players/{id} again, on any
+    later date. Bench-only players are deliberately excluded from
+    seen_players so they keep being re-evaluated.
   - A match, once its lineup + box-score have been fully read, is recorded in
     progress.json. Re-running the same date (e.g. after a quota-exhaustion
     stop) skips already-processed matches entirely — no /lineups or
     /box-score call is repeated. If every match for a given league+date is
     already processed, the /matches list call itself is skipped too.
+  - Highlightly's /lineups sometimes returns a null player id (seen for late
+    squad additions). When that happens we fall back to the matching
+    player's id in /box-score (matched by name) instead of dropping them.
 
 Post-debut tracking:
   - Any debutante who actually played (min > 0) is tracked for their next 5
@@ -213,10 +236,24 @@ def flush_seen(records):
 
 def save_debutante(row):
     """
-    Insert one debutante row. Uses upsert on (player_id, debut_date)
-    so re-running is safe — it will just overwrite with the same data.
+    Insert or update one player's row in 'debutantes'. Uses upsert on
+    player_id alone — a player has at most one row. This lets a "banca"
+    (bench-only) row be overwritten in place once the player graduates to a
+    real debut (min > 0), instead of accumulating a second row.
+    Requires a UNIQUE constraint on debutantes.player_id in Supabase.
     """
-    sb.table("debutantes").upsert(row, on_conflict="player_id,debut_date").execute()
+    sb.table("debutantes").upsert(row, on_conflict="player_id").execute()
+
+def load_bench_players():
+    """
+    Load player_ids currently in the "solo al banco" state: under-21 players
+    seen in a squad but with no match where min > 0 yet. These are
+    deliberately NOT in seen_players, so every future match re-checks them
+    until they either graduate (min > 0 — replaces this row with a real
+    debut) or simply keep sitting on the bench.
+    """
+    rows = sb.table("debutantes").select("player_id").eq("role", "banca").execute()
+    return {r["player_id"] for r in rows.data}
 
 def load_tracked_players():
     """
@@ -274,12 +311,13 @@ def _flatten(entries):
             yield entry
 
 # ─── Core: one match ──────────────────────────────────────────────────────────
-def process_match(match, league_name, target_date, seen, dob_cache, tracked, dry_run):
+def process_match(match, league_name, target_date, seen, bench, dob_cache, tracked, dry_run):
     """
     Returns True if the match was fully read (lineup + box-score available,
     debut decision made) — safe to mark as processed and never fetch again.
     Returns False if the match couldn't be fully read yet (e.g. not played
-    yet, no lineup data) — it should be retried on a later run.
+    yet, no lineup data, or a player's id couldn't be resolved at all) — it
+    should be retried on a later run.
     """
     mid      = match["id"]
     jornada  = parse_jornada(match.get("round", ""))
@@ -298,29 +336,37 @@ def process_match(match, league_name, target_date, seen, dob_cache, tracked, dry
         print("      (no lineup data — match may not have been played yet)")
         return False
 
-    # Build a dict of every player in the squad: {player_id: info}
-    players = {}
+    # Build a dict of every player in the squad: {player_id: info}.
+    # Highlightly sometimes omits the numeric id for a player in /lineups
+    # (observed for late squad additions) — those go into `unresolved` and
+    # get a second chance below, matched by name against /box-score.
+    players    = {}
+    unresolved = []
     for side, fallback_team in (("homeTeam", home), ("awayTeam", away)):
         block = lineups.get(side) or {}
         tid = block.get("id", fallback_team["id"])
         for p in _flatten(block.get("initialLineup")):
-            pid = p.get("id")
-            if not pid:
-                continue
-            players[pid] = {
+            info = {
                 "name": p.get("name"), "team_id": tid, "in_xi": True,
                 "pos": p.get("position"), "shirt": p.get("number") or p.get("shirtNumber"),
             }
-        for p in block.get("substitutes") or []:
             pid = p.get("id")
-            if not pid:
-                continue
-            players[pid] = {
+            if pid:
+                players[pid] = info
+            else:
+                unresolved.append(info)
+        for p in block.get("substitutes") or []:
+            info = {
                 "name": p.get("name"), "team_id": tid, "in_xi": False,
                 "pos": p.get("position"), "shirt": p.get("number") or p.get("shirtNumber"),
             }
+            pid = p.get("id")
+            if pid:
+                players[pid] = info
+            else:
+                unresolved.append(info)
 
-    if not players:
+    if not players and not unresolved:
         # The lineups endpoint returned homeTeam/awayTeam blocks, but with no
         # initialLineup/substitutes entries in either — Highlightly sometimes
         # does this for leagues it hasn't populated player-level data for yet
@@ -332,11 +378,15 @@ def process_match(match, league_name, target_date, seen, dob_cache, tracked, dry
     # ── Step 2: Fetch box score (minutes + rating) ───────────────────────────
     # /box-score returns a LIST of {"team": {...}, "players": [...]} blocks —
     # one per team — unlike /lineups which returns a homeTeam/awayTeam dict.
-    stats = {}
+    stats       = {}
+    box_by_name = {}  # name -> id, used to resolve `unresolved` lineup entries
     box = api_get(f"/box-score/{mid}")
     for block in box or []:
         for p in block.get("players") or []:
             pid = p.get("id")
+            nm  = p.get("name")
+            if nm:
+                box_by_name.setdefault(nm, pid)
             if not pid:
                 continue
             raw_rating = p.get("matchRating")  # Highlightly sends this as a string, e.g. "7.04"
@@ -348,80 +398,115 @@ def process_match(match, league_name, target_date, seen, dob_cache, tracked, dry
                 "is_sub":  p.get("isSubstitute"),
             }
 
-    # ── Step 3: Decide who is a debutante ────────────────────────────────────
-    new_debuts = []
-    new_seen   = []  # everyone new (any age) — recorded so we skip them next time
+    # Resolve the null-id lineup entries by matching their name in box-score.
+    for info in unresolved:
+        real_id = box_by_name.get(info["name"])
+        if real_id:
+            players[real_id] = info
+            print(f"      (resolved null lineup id for {info['name']} via box-score -> {real_id})")
+        else:
+            print(f"      [WARN] {info['name']} has no id in /lineups and no box-score match — skipped this match")
+
+    if not players:
+        print("      (no player with a resolvable id — will retry later)")
+        return False
+
+    # ── Step 3: Decide debut / bench / post-debut for each player ───────────
+    new_debuts = []  # rows to upsert into 'debutantes' — real debuts AND banca sightings
+    new_seen   = []  # players now permanently decided (adult/unknown-DOB, or a new real debutante)
     new_posts  = []  # post-debut appearances (tracked players) recorded this match
+    n_real = n_grad = n_banca = 0
 
     for pid, pinfo in players.items():
-        if pid in seen:
-            # Not a new debut. If they're a tracked player, check whether
-            # this match is one of their next post-debut appearances.
-            info = tracked.get(pid)
-            if info and target_date > info["debut_date"] and info["count"] < 5 and date_str not in info["dates"]:
-                pst  = stats.get(pid, {})
-                mins = pst.get("minutes", 0)
-                if mins > 0:
-                    tid = pinfo["team_id"]
-                    new_posts.append({
-                        "player_id":  pid,
-                        "name":       pinfo["name"],
-                        "match_date": date_str,
-                        "jornada":    jornada,
-                        "rival":      rival_of.get(tid, ""),
-                        "min":        mins,
-                        "rating":     pst.get("rating"),
-                    })
-                    info["dates"].add(date_str)
-                    info["count"] += 1
-                    print(f"      ↳  {pinfo['name']} post-debut #{info['count']}/5: {mins}′ vs {rival_of.get(tid, '')}")
-            continue  # already appeared in a previous run — definitely not a debut
+        pst  = stats.get(pid, {})
+        mins = pst.get("minutes", 0)
+        tid  = pinfo["team_id"]
 
+        if pid in seen:
+            # Adult, DOB-unknown, or already a locked-in real debutante —
+            # not a debut candidate. Still check post-debut tracking.
+            info = tracked.get(pid)
+            if (info and mins > 0 and target_date > info["debut_date"]
+                    and info["count"] < 5 and date_str not in info["dates"]):
+                new_posts.append({
+                    "player_id":  pid,
+                    "name":       pinfo["name"],
+                    "match_date": date_str,
+                    "jornada":    jornada,
+                    "rival":      rival_of.get(tid, ""),
+                    "min":        mins,
+                    "rating":     pst.get("rating"),
+                })
+                info["dates"].add(date_str)
+                info["count"] += 1
+                print(f"      ↳  {pinfo['name']} post-debut #{info['count']}/5: {mins}′ vs {rival_of.get(tid, '')}")
+            continue
+
+        if pid in bench:
+            # Known "solo al banco" player from a previous match.
+            if mins <= 0:
+                continue  # still hasn't played — recheck again next time
+            # ── GRADUATION: first match with min > 0 → this is the real debut ──
+            dob  = get_dob(pid, dob_cache)  # already cached from when first benched
+            role = "titular" if pinfo["in_xi"] else "cambio"
+            new_debuts.append({
+                "player_id": pid, "name": pinfo["name"], "dob": dob,
+                "club": team_names.get(tid, ""), "liga": league_name,
+                "pos": pinfo.get("pos") or pst.get("pos"),
+                "shirt": pinfo.get("shirt") or pst.get("shirt"),
+                "debut_date": date_str, "jornada": jornada,
+                "rival": rival_of.get(tid, ""), "role": role,
+                "min": mins, "rating": pst.get("rating"),
+            })
+            print(f"      ★  {pinfo['name']} — DEBUTA (was solo al banco) — {role}, {mins}′")
+            n_grad += 1
+            bench.discard(pid)
+            new_seen.append({"player_id": pid, "name": pinfo["name"], "first_seen": date_str})
+            seen.add(pid)
+            tracked[pid] = {"name": pinfo["name"], "debut_date": target_date, "count": 0, "dates": set()}
+            continue
+
+        # Never encountered before, on bench or otherwise.
         dob = get_dob(pid, dob_cache)
         a   = age_at(dob, target_date) if dob else None
 
-        # Add to seen regardless of age — we never want to check this player again
-        new_seen.append({"player_id": pid, "name": pinfo["name"], "first_seen": date_str})
-        seen.add(pid)
-
         if a is None or a >= 21:
-            continue  # 21 or older (or no birth data) — not a debutante
+            # 21+ (or no birth data) — permanently not a candidate.
+            new_seen.append({"player_id": pid, "name": pinfo["name"], "first_seen": date_str})
+            seen.add(pid)
+            continue
 
-        # ── Under 21, first time seen → it's a debut ─────────────────────────
-        pst  = stats.get(pid, {})
-        mins = pst.get("minutes", 0)
-
-        if pinfo["in_xi"]:
-            role = "titular"
-        elif mins > 0:
-            role = "cambio"  # came on from bench
-        else:
-            role = "banca"   # listed but didn't play
-
-        tid = pinfo["team_id"]
-        new_debuts.append({
-            "player_id":  pid,
-            "name":       pinfo["name"],
-            "dob":        dob,
-            "club":       team_names.get(tid, ""),
-            "liga":       league_name,
-            "pos":        pinfo.get("pos") or pst.get("pos"),
-            "shirt":      pinfo.get("shirt") or pst.get("shirt"),
-            "debut_date": date_str,
-            "jornada":    jornada,
-            "rival":      rival_of.get(tid, ""),
-            "role":       role,
-            "min":        mins,
-            "rating":     pst.get("rating"),
-        })
-        print(f"      ★  {pinfo['name']} ({a} años) — {role}, {mins}′")
-
+        # ── Under 21, first-ever sighting ─────────────────────────────────
         if mins > 0:
-            # Start post-debut tracking immediately (in-memory) so later
-            # matches in this same run — e.g. a multi-date backfill, not
-            # just the daily single-date cron — also pick up this player's
-            # next appearances, instead of only from the following run.
+            role = "titular" if pinfo["in_xi"] else "cambio"
+            new_debuts.append({
+                "player_id": pid, "name": pinfo["name"], "dob": dob,
+                "club": team_names.get(tid, ""), "liga": league_name,
+                "pos": pinfo.get("pos") or pst.get("pos"),
+                "shirt": pinfo.get("shirt") or pst.get("shirt"),
+                "debut_date": date_str, "jornada": jornada,
+                "rival": rival_of.get(tid, ""), "role": role,
+                "min": mins, "rating": pst.get("rating"),
+            })
+            print(f"      ★  {pinfo['name']} ({a} años) — {role}, {mins}′")
+            n_real += 1
+            new_seen.append({"player_id": pid, "name": pinfo["name"], "first_seen": date_str})
+            seen.add(pid)
             tracked[pid] = {"name": pinfo["name"], "debut_date": target_date, "count": 0, "dates": set()}
+        else:
+            new_debuts.append({
+                "player_id": pid, "name": pinfo["name"], "dob": dob,
+                "club": team_names.get(tid, ""), "liga": league_name,
+                "pos": pinfo.get("pos") or pst.get("pos"),
+                "shirt": pinfo.get("shirt") or pst.get("shirt"),
+                "debut_date": date_str, "jornada": jornada,
+                "rival": rival_of.get(tid, ""), "role": "banca",
+                "min": 0, "rating": pst.get("rating"),
+            })
+            print(f"      ⏳  {pinfo['name']} ({a} años) — solo al banco (por debutar)")
+            n_banca += 1
+            bench.add(pid)
+            # Deliberately NOT added to `seen` — must be re-checked next time.
 
     # ── Step 4: Save to Supabase ─────────────────────────────────────────────
     if not dry_run:
@@ -429,15 +514,16 @@ def process_match(match, league_name, target_date, seen, dob_cache, tracked, dry
             save_debutante(row)
         for row in new_posts:
             save_post_debut(row)
-        flush_seen(new_seen)   # one batch write for all new players
+        flush_seen(new_seen)   # one batch write for all newly-decided players
 
     label = "DRY RUN — " if dry_run else ""
-    print(f"      → {label}{len(new_debuts)} debut(s) found, {len(new_posts)} post-debut appearance(s) in this match")
+    print(f"      → {label}{n_real} debut(s), {n_grad} graduation(s) from banca, "
+          f"{n_banca} new banca sighting(s), {len(new_posts)} post-debut appearance(s)")
     return True
 
 
 # ─── Core: one league on one date ─────────────────────────────────────────────
-def process_league_date(league_id, league_name, target_date, seen, dob_cache, tracked, progress, dry_run):
+def process_league_date(league_id, league_name, target_date, seen, bench, dob_cache, tracked, progress, dry_run):
     date_str = target_date.isoformat()
     key = f"{league_id}:{date_str}"
 
@@ -467,7 +553,7 @@ def process_league_date(league_id, league_name, target_date, seen, dob_cache, tr
             print(f"    [{mid}] already processed — skipping (0 API calls)")
             continue
         try:
-            completed = process_match(match, league_name, target_date, seen, dob_cache, tracked, dry_run)
+            completed = process_match(match, league_name, target_date, seen, bench, dob_cache, tracked, dry_run)
         except QuotaExhausted:
             raise  # stop everything — no point trying more matches/leagues/dates
         except Exception as e:
@@ -533,9 +619,11 @@ def main():
 
     dob_cache = load_dob_cache()
     seen      = load_seen_players()
+    bench     = load_bench_players()
     progress  = load_progress()
     tracked   = load_tracked_players()
     print(f"Loaded {len(seen)} already-seen player(s) from Supabase.")
+    print(f"Loaded {len(bench)} player(s) currently 'solo al banco' (under 21, not yet played).")
     print(f"Loaded {len(progress['processed_matches'])} already-processed match(es) from progress.json.")
     print(f"Loaded {len(tracked)} player(s) under post-debut tracking (<5 appearances recorded).")
 
@@ -548,7 +636,7 @@ def main():
             print(f"  {league_name}")
             print(f"{'='*52}")
             for d in dates:
-                process_league_date(league_id, league_name, d, seen, dob_cache, tracked, progress, dry_run=args.dry_run)
+                process_league_date(league_id, league_name, d, seen, bench, dob_cache, tracked, progress, dry_run=args.dry_run)
     except QuotaExhausted as e:
         print(f"\n[STOPPED] {e}")
         print("Run again once the daily quota resets to finish the remaining date(s)/league(s).")
