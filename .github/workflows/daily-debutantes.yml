@@ -22,15 +22,35 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Compute yesterday's date
-        id: yesterday
-        run: echo "date=$(date -u -d 'yesterday' +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+      - name: Compute date range
+        id: dates
+        run: |
+          echo "yesterday=$(date -u -d 'yesterday' +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+          echo "week_ago=$(date -u -d '7 days ago' +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
-      - name: Run debutantes engine for yesterday
+      # Primera A gets a rolling 7-day window instead of just yesterday. This
+      # is a retry mechanism: a match whose lineup/box-score wasn't ready yet
+      # when it was first checked (e.g. Highlightly publishes it late) gets
+      # re-checked on every run for a week instead of being skipped forever.
+      # Safe to re-run: writes are upserts and the "seen"/tracking state comes
+      # from Supabase, so already-processed matches/notifications aren't
+      # duplicated — this just costs a few extra API calls.
+      - name: Run debutantes engine for Primera A (last 7 days)
         env:
           HIGHLIGHTLY_KEY: ${{ secrets.HIGHLIGHTLY_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python engine.py --date "${{ steps.yesterday.outputs.date }}" --notify
+        run: >
+          python engine.py --from "${{ steps.dates.outputs.week_ago }}"
+          --to "${{ steps.dates.outputs.yesterday }}" --league 204173 --notify
+
+      - name: Run debutantes engine for Primera B (yesterday)
+        env:
+          HIGHLIGHTLY_KEY: ${{ secrets.HIGHLIGHTLY_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python engine.py --date "${{ steps.dates.outputs.yesterday }}" --league 205024 --notify
