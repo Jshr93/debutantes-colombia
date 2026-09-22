@@ -153,7 +153,7 @@
           <p>Primera A y B — jugadores sub-21</p>
         </div>
       </div>
-      <div class="upd">Última actualización<b>14 sep 2026, 22:40</b><small>Se actualiza en cada jornada</small></div>
+      <div class="upd">Última actualización<b id="last-updated">—</b><small>Se actualiza en cada jornada</small></div>
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab" role="tab" aria-selected="true"  onclick="setTab('deb')" id="tab-deb">Debutantes</button>
@@ -449,6 +449,22 @@
     });
   }
 
+  async function loadLastUpdated() {
+    const el = document.getElementById('last-updated');
+    try {
+      const { data, error } = await sb.from('meta').select('value').eq('key', 'last_run').maybeSingle();
+      if (error || !data) { el.textContent = '—'; return; }
+      const d = new Date(data.value);
+      const col = new Date(d.getTime() - 5 * 3600 * 1000); // UTC-5, Colombia has no DST
+      const hh = String(col.getUTCHours()).padStart(2, '0');
+      const mm = String(col.getUTCMinutes()).padStart(2, '0');
+      el.textContent = `${col.getUTCDate()} ${MESES[col.getUTCMonth()]} ${col.getUTCFullYear()}, ${hh}:${mm}`;
+    } catch (e) {
+      console.error('Supabase meta load (exception):', e);
+      el.textContent = '—';
+    }
+  }
+
   async function saveStatus(p) {
     const { error } = await sb.from('player_status').upsert(
       { player_name: p.name, flag: p.flag ?? null, agent: p.agent ?? '', updated_at: new Date().toISOString() },
@@ -484,6 +500,7 @@
     const postByPlayer = await loadPostDebut();
     P.forEach(p => { p.post = postByPlayer[p.player_id] || []; });
     await loadStatuses();
+    loadLastUpdated();
     fechasList(); statsDeb(); renderDeb(); statsSeg(); renderSeg();
   }
   init();

@@ -67,7 +67,7 @@ import sys
 import json
 import time
 import argparse
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
 
 import requests
@@ -276,6 +276,18 @@ def flush_seen(records):
     """
     if records:
         sb.table("seen_players").upsert(records, on_conflict="player_id").execute()
+
+def save_last_run():
+    """
+    Upsert the current UTC timestamp into the 'meta' table under key
+    'last_run'. Called once at the end of every real (non-dry-run) engine
+    run so the frontend can show real freshness instead of a fixed date.
+    Requires a 'meta' table with columns (key text primary key, value text).
+    """
+    sb.table("meta").upsert(
+        {"key": "last_run", "value": datetime.now(timezone.utc).isoformat()},
+        on_conflict="key",
+    ).execute()
 
 def save_debutante(row):
     """
@@ -701,6 +713,9 @@ def main():
         save_progress(progress)
         print("\nDOB cache saved to dob_cache.json")
         print("Progress saved to progress.json")
+        if not args.dry_run:
+            save_last_run()
+            print("Last-run timestamp saved to Supabase.")
 
 
 if __name__ == "__main__":
